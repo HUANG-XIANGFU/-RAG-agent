@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>科研文档智能问答平台</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel-2:#1e222b; --border:#2a2f3a;
+    --text:#e6e9ef; --muted:#8b93a7; --accent:#5b8cff; --accent-2:#3ddc97;
+    --warn:#ffb020; --err:#ff5f6d; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",Roboto,sans-serif}
+  a{color:var(--accent)}
+  header{display:flex;align-items:center;gap:16px;padding:14px 20px;
+    border-bottom:1px solid var(--border);background:var(--panel);position:sticky;top:0;z-index:10}
+  header h1{font-size:16px;margin:0;font-weight:600;white-space:nowrap}
+  .status{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+  .pill{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);
+    background:var(--panel-2);color:var(--muted)}
+  .pill.ok{color:var(--accent-2);border-color:#22483a}
+  .pill.bad{color:var(--err);border-color:#4a2226}
+  nav{display:flex;gap:4px;padding:10px 20px 0}
+  nav button{background:none;border:none;color:var(--muted);padding:9px 16px;font-size:14px;
+    cursor:pointer;border-radius:8px 8px 0 0;border-bottom:2px solid transparent}
+  nav button.active{color:var(--text);background:var(--panel);border-bottom-color:var(--accent)}
+  main{padding:20px;max-width:1180px;margin:0 auto}
+  .panel{display:none}
+  .panel.active{display:block}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px;margin-bottom:16px}
+  .card h2{font-size:14px;margin:0 0 12px;font-weight:600;color:var(--text)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  button.btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 16px;
+    font-size:14px;cursor:pointer}
+  button.btn:hover{filter:brightness(1.1)}
+  button.btn:disabled{opacity:.5;cursor:not-allowed}
+  button.ghost{background:var(--panel-2);color:var(--text);border:1px solid var(--border)}
+  button.danger{background:#3a1f24;color:var(--err);border:1px solid #55252b}
+  button.mini{padding:4px 10px;font-size:12px;border-radius:6px}
+  input[type=text],input[type=number],textarea,select{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    border-radius:8px;padding:9px 12px;font-size:14px;outline:none;font-family:inherit}
+  input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+  textarea{resize:vertical;width:100%}
+  .grow{flex:1;min-width:120px}
+  .muted{color:var(--muted);font-size:12px}
+  pre{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:12px;
+    white-space:pre-wrap;word-break:break-word;max-height:380px;overflow:auto;margin:0;font-size:13px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{color:var(--muted);font-weight:500}
+  /* 对话 */
+  #chatLog{height:min(58vh,560px);overflow:auto;padding:4px}
+  .msg{margin-bottom:14px;display:flex;flex-direction:column;gap:6px}
+  .msg .who{font-size:12px;color:var(--muted)}
+  .bubble{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;
+    white-space:pre-wrap;word-break:break-word}
+  .msg.user .bubble{background:#1b2740;border-color:#274066}
+  .evt{font-size:12px;color:var(--muted);border-left:2px solid var(--border);padding-left:8px;
+    white-space:pre-wrap;word-break:break-word}
+  .evt.tool{color:var(--accent)}
+  .evt.node{color:#7a86a0}
+  .stats{margin-top:8px;font-size:12px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap}
+  .tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;
+    background:var(--panel-2);border:1px solid var(--border);color:var(--muted);margin:0 4px 4px 0}
+  .tag.t{color:var(--accent-2);border-color:#22483a}
+  #toast{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;z-index:50}
+  .toast{background:var(--panel-2);border:1px solid var(--border);border-left:3px solid var(--accent);
+    border-radius:8px;padding:10px 14px;font-size:13px;max-width:340px}
+  .toast.err{border-left-color:var(--err)}
+  .toast.ok{border-left-color:var(--accent-2)}
+  .loading::after{content:"";display:inline-block;width:12px;height:12px;margin-left:8px;
+    border:2px solid var(--muted);border-top-color:transparent;border-radius:50%;
+    animation:spin .8s linear infinite;vertical-align:middle}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;
+    align-items:center;justify-content:center;z-index:100}
+  .modal-backdrop[hidden]{display:none}
+  .modal{width:min(560px,92vw);margin:0}
+  .hint{border-left:3px solid var(--warn);background:#241f14;border-radius:8px;
+    padding:10px 14px;font-size:13px;margin-top:10px;line-height:1.7}
+  .hint button{margin-left:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>科研文档智能问答平台</h1>
+  <div class="status" id="status"></div>
+  <span class="pill" id="startupPill">Agent: 启动中…</span>
+  <button class="btn ghost mini" id="btnModels" style="margin-left:12px">更换模型</button>
+  <button class="btn ghost mini" id="btnApiKey">更换 API Key</button>
+</header>
+
+<nav>
+  <button data-tab="chat" class="active">对话</button>
+  <button data-tab="kb">知识库</button>
+  <button data-tab="search">检索</button>
+  <button data-tab="settings">设置</button>
+</nav>
+
+<main>
+  <!-- 对话 -->
+  <section class="panel active" id="panel-chat">
+    <div class="card">
+      <div class="row" style="margin-bottom:12px">
+        <strong style="font-size:14px">对话</strong>
+        <span class="muted" id="chatThread"></span>
+        <button class="btn ghost mini" id="btnNewSession" style="margin-left:auto">新会话</button>
+      </div>
+      <div id="chatLog"></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <textarea id="chatInput" class="grow" rows="2" placeholder="输入问题…（Shift+Enter 换行，Enter 发送；输入「记住 xxx」可写入用户画像）"></textarea>
+        <button class="btn" id="btnSend">发送</button>
+      </div>
+      <div class="muted" style="margin-top:8px">
+        示例：GResMark 的水印提取流程是什么？｜ 对比表 3 的 PSNR 结果 ｜ 北京空气质量如何？
+      </div>
+    </div>
+  </section>
+
+  <!-- 知识库 -->
+  <section class="panel" id="panel-kb">
+    <div class="card">
+      <h2>上传并入库</h2>
+      <div class="row">
+        <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc,.pptx,.ppt" />
+        <label class="muted"><input type="checkbox" id="forceIngest" /> 强制重新入库（覆盖已有）</label>
+        <button class="btn" id="btnUpload">解析并入库</button>
+      </div>
+      <div class="muted" style="margin-top:8px">流程：上传 → 存入 dataset → MinerU 解析 → 清洗/元数据提取 → 切块 → 向量化入库（Postgres + Milvus + BM25）。</div>
+      <div id="uploadResult" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <h2>dataset 目录文件</h2>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn ghost mini" id="btnScanIngest">扫描并入库全部</button>
+        <button class="btn ghost mini" id="btnRefreshDataset">刷新</button>
+      </div>
+      <div id="datasetList"></div>
+    </div>
+
+    <div class="card">
+      <h2>已入库文档</h2>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn ghost mini" id="btnRefreshDocs">刷新</button>
+        <button class="btn danger mini" id="btnReset" style="margin-left:auto">清空全部索引</button>
+      </div>
+      <div id="docList"></div>
+    </div>
+  </section>
+
+  <!-- 检索 -->
+  <section class="panel" id="panel-search">
+    <div class="card">
+      <h2>混合检索调试</h2>
+      <div class="row">
+        <input type="text" id="searchQuery" class="grow" placeholder="输入检索问题，如：表 3 PSNR 对比" />
+        <label class="muted">top-k <input type="number" id="searchK" value="5" min="1" max="20" style="width:64px" /></label>
+        <button class="btn" id="btnSearch">检索</button>
+      </div>
+      <div class="muted" style="margin-top:8px">稠密检索(DashScope + Milvus) + BM25 → RRF 融合 → Reranker 重排 → 父文档。</div>
+    </div>
+    <div class="card">
+      <h2>结果</h2>
+      <div id="searchResults"><span class="muted">暂无结果</span></div>
+    </div>
+  </section>
+
+  <!-- 设置 -->
+  <section class="panel" id="panel-settings">
+    <div class="card">
+      <h2>模型设置（运行中切换，无需重启）</h2>
+      <div class="row" style="margin-bottom:8px">
+        <label class="muted" style="width:84px">主模型</label>
+        <input type="text" id="modelLlm" class="grow" list="llmOptions" placeholder="如 qwen3.7-flash" />
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <label class="muted" style="width:84px">向量模型</label>
+        <input type="text" id="modelEmbedding" class="grow" list="embeddingOptions" placeholder="如 qwen3.7-text-embedding-flash" />
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <label class="muted" style="width:84px">重排模型</label>
+        <input type="text" id="modelReranker" class="grow" list="rerankerOptions" placeholder="如 qwen3.7-text-rerank" />
+      </div>
+      <datalist id="llmOptions"></datalist>
+      <datalist id="embeddingOptions"></datalist>
+      <datalist id="rerankerOptions"></datalist>
+      <div class="row">
+        <button class="btn" id="btnSaveModels">应用模型</button>
+        <button class="btn ghost" id="btnRebuildVectors" hidden>重建向量索引</button>
+        <button class="btn ghost mini" id="btnRefreshModels">刷新</button>
+        <span class="muted" id="modelState"></span>
+      </div>
+      <div class="muted" style="margin-top:8px">
+        某个模型额度用尽时可换成同类其它模型：主模型 / 重排模型即时生效；向量模型切换后旧向量失效，
+        平台会自动删除 Milvus 旧集合并按 Postgres 父文档重新向量化（不重新解析文档），
+        期间请勿关闭页面。输入框可下拉选择候选，也可直接填自定义模型名。
+      </div>
+      <div id="modelResult" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h2>长期记忆 · 当前会话摘要</h2>
+      <pre id="memSummary">（无）</pre>
+    </div>
+    <div class="card">
+      <h2>永久记忆 · 用户画像</h2>
+      <div id="memFacts"></div>
+      <div class="row" style="margin-top:12px">
+        <input type="text" id="factInput" class="grow" placeholder="输入内容写入画像，如：我偏好中文回答 或 方向: 数字水印" />
+        <button class="btn" id="btnAddFact">记住</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="apiKeyModal" class="modal-backdrop" hidden>
+  <div class="card modal">
+    <h2>更换百炼 API Key（无需重启）</h2>
+    <div class="muted" style="margin-bottom:10px">
+      额度用尽或 Key 失效时填入新 Key 即可立即恢复对话与入库；也可到百炼控制台充值或关闭「仅使用免费额度」。
+    </div>
+    <input type="text" id="apiKeyInput" placeholder="sk-..." style="width:100%" />
+    <div class="muted" id="apiKeyResult" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn ghost" id="btnApiKeyCancel">取消</button>
+      <button class="btn" id="btnApiKeySave">保存并重建 Agent</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const api = async (url, opts) => {
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error((await r.text()) || r.statusText);
+  return r.json();
+};
+
+/* ---- toast ---- */
+function toast(msg, kind = "") {
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  $("#toast").appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
+/* ---- tabs ---- */
+document.querySelectorAll("nav button").forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll("nav button").forEach((x) => x.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    $("#panel-" + b.dataset.tab).classList.add("active");
+    if (b.dataset.tab === "kb") { loadDataset(); loadDocs(); }
+    if (b.dataset.tab === "settings") { loadMemory(); loadModels(); }
+  };
+});
+
+/* ---- health ---- */
+async function loadHealth() {
+  const el = $("#status");
+  try {
+    const h = await api("/api/health");
+    const p = (name, v) => `<span class="pill ${v ? "ok" : "bad"}">${name} ${v ? "正常" : "异常"}</span>`;
+    el.innerHTML = p("API Key", h.dashscope) + p("Postgres", h.postgres) + p("Milvus", h.milvus);
+    $("#chatThread").textContent = "会话 " + h.thread_id;
+  } catch (e) {
+    el.innerHTML = `<span class="pill bad">后端未就绪</span>`;
+  }
+}
+
+/* ---- 对话 ---- */
+const log = $("#chatLog");
+function addMsg(who, cls) {
+  const wrap = document.createElement("div");
+  wrap.className = "msg " + cls;
+  const w = document.createElement("div");
+  w.className = "who";
+  w.textContent = who;
+  const b = document.createElement("div");
+  b.className = "bubble";
+  wrap.append(w, b);
+  log.appendChild(wrap);
+  log.scrollTop = log.scrollHeight;
+  return b;
+}
+function addEvt(text, cls = "") {
+  const d = document.createElement("div");
+  d.className = "evt " + cls;
+  d.textContent = text;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+  return d;
+}
+
+/* 额度用尽 / Key 失效：在对话流内给出可点击的修复入口 */
+function showFixHint(hint, kind) {
+  const box = document.createElement("div");
+  box.className = "hint";
+  box.textContent = hint;
+  if (kind === "quota" || kind === "auth") {
+    const btn = document.createElement("button");
+    btn.className = "btn mini";
+    btn.dataset.apikey = "1";
+    btn.textContent = "更换 API Key";
+    box.appendChild(btn);
+  }
+  log.appendChild(box);
+  log.scrollTop = log.scrollHeight;
+  toast(hint, "err");
+}
+
+let sending = false;
+
+async function send() {
+  const input = $("#chatInput");
+  const text = input.value.trim();
+  if (!text || sending) return;
+  input.value = "";
+  addMsg("我", "user").textContent = text;
+
+  const newSession = $("#btnNewSession").dataset.pending === "1";
+  if (newSession) delete $("#btnNewSession").dataset.pending;
+
+  const bubble = addMsg("助手", "ai");
+  bubble.classList.add("loading");
+  let firstToken = true;
+
+  sending = true;
+  $("#btnSend").disabled = true;
+
+  try {
+    const resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, new_session: newSession }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        const line = chunk.split("\n").find((l) => l.startsWith("data:"));
+        if (!line) continue;
+        handleEvent(JSON.parse(line.slice(5).trim()));
+      }
+    }
+  } catch (e) {
+    bubble.classList.remove("loading");
+    if (!bubble.textContent) bubble.textContent = "（无回复）";
+    addEvt("错误：" + e.message, "").style.color = "var(--err)";
+    toast("对话失败：" + e.message, "err");
+  } finally {
+    bubble.classList.remove("loading");
+    sending = false;
+    $("#btnSend").disabled = false;
+  }
+
+  function handleEvent(ev) {
+    if (ev.type === "token") {
+      if (firstToken) { bubble.classList.remove("loading"); firstToken = false; }
+      bubble.textContent += ev.text;
+      log.scrollTop = log.scrollHeight;
+    } else if (ev.type === "tool_call") {
+      addEvt("[调用工具] " + ev.names.join(", "), "tool");
+    } else if (ev.type === "tool_result") {
+      addEvt("[工具返回] " + ev.preview, "tool");
+    } else if (ev.type === "node") {
+      addEvt(`[节点: ${ev.name}] 消息数=${ev.msgs}  耗时=${ev.dt}s`, "node");
+    } else if (ev.type === "notice") {
+      addEvt("[记忆] " + ev.text);
+      loadMemory();
+    } else if (ev.type === "error") {
+      addEvt("[提示] " + ev.message, "").style.color = "var(--warn)";
+      if (ev.hint) showFixHint(ev.hint, ev.kind);
+    } else if (ev.type === "done") {
+      const s = ev.stats;
+      const st = document.createElement("div");
+      st.className = "stats";
+      st.textContent = `耗时 ${s.elapsed}s ｜ 步数 ${s.steps} ｜ 工具调用 ${s.tools} 次`;
+      log.appendChild(st);
+      log.scrollTop = log.scrollHeight;
+      loadHealth();
+    }
+  }
+}
+
+$("#btnSend").onclick = send;
+$("#chatInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+$("#btnNewSession").onclick = async () => {
+  const b = $("#btnNewSession");
+  b.dataset.pending = "1";
+  toast("下一条消息将开启新会话（永久画像保留）", "ok");
+  await api("/api/session/new", { method: "POST" }).catch(() => {});
+  loadHealth();
+};
+
+/* ---- 知识库 ---- */
+function esc(s) { return (s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+$("#btnUpload").onclick = async () => {
+  const files = $("#fileInput").files;
+  if (!files.length) { toast("请先选择文件", "err"); return; }
+  const fd = new FormData();
+  for (const f of files) fd.append("files", f);
+  fd.append("force", $("#forceIngest").checked ? "true" : "false");
+
+  const btn = $("#btnUpload");
+  btn.disabled = true; btn.classList.add("loading");
+  $("#uploadResult").innerHTML = '<span class="muted">解析与入库中，首次运行需下载模型，请耐心等待…</span>';
+  try {
+    const r = await api("/api/upload", { method: "POST", body: fd });
+    renderUploadResult(r.results);
+    loadDataset(); loadDocs();
+  } catch (e) {
+    toast("上传失败：" + e.message, "err");
+    $("#uploadResult").innerHTML = "";
+  } finally {
+    btn.disabled = false; btn.classList.remove("loading");
+  }
+};
+
+function renderUploadResult(results) {
+  const rows = results.map((r) =>
+    `<tr><td>${esc(r.source)}</td><td>${r.ok ? '<span class="tag t">成功</span>' : '<span class="tag" style="color:var(--err)">失败</span>'}</td>
+     <td>${r.ok ? (r.added_parents ?? 0) : ""}</td><td>${esc(r.message)}</td></tr>`).join("");
+  let html = `<table><thead><tr><th>文件</th><th>状态</th><th>新增父块</th><th>说明</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const bad = results.find((r) => !r.ok && r.hint);
+  if (bad) html += `<div class="hint">${esc(bad.hint)}<button class="btn mini" data-apikey="1">更换 API Key</button></div>`;
+  $("#uploadResult").innerHTML = html;
+}
+
+async function loadDataset() {
+  const el = $("#datasetList");
+  try {
+    const r = await api("/api/dataset");
+    if (!r.files.length) { el.innerHTML = '<span class="muted">dataset 目录暂无文档</span>'; return; }
+    el.innerHTML = `<table><thead><tr><th>文件</th><th>大小</th><th>状态</th><th>操作</th></tr></thead><tbody>` +
+      r.files.map((f) => `<tr>
+        <td>${esc(f.name)}</td><td>${f.size_kb} KB</td>
+        <td>${f.ingested ? '<span class="tag t">已入库</span>' : '<span class="tag">未入库</span>'}</td>
+        <td class="row" style="gap:6px">
+          <button class="btn ghost mini" data-ingest="${esc(f.name)}" data-force="0">入库</button>
+          <button class="btn ghost mini" data-ingest="${esc(f.name)}" data-force="1">强制重入库</button>
+        </td></tr>`).join("") + "</tbody></table>";
+  } catch (e) { el.innerHTML = `<span class="muted">加载失败：${esc(e.message)}</span>`; }
+}
+
+async function ingestOne(name, force) {
+  toast(`入库中：${name}`, "");
+  try {
+    const r = await api("/api/ingest", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: name, force }),
+    });
+    if (r.ok === false) {
+      toast(r.hint || ("入库失败：" + r.message), "err");
+      if (r.kind === "quota" || r.kind === "auth") openApiKeyModal();
+      return;
+    }
+    toast(`${name} 入库完成（新增 ${r.added_parents} 个父块）`, "ok");
+    loadDataset(); loadDocs();
+  } catch (e) { toast("入库失败：" + e.message, "err"); }
+}
+
+$("#btnScanIngest").onclick = async () => {
+  const b = $("#btnScanIngest"); b.disabled = true; b.classList.add("loading");
+  try {
+    const r = await api("/api/ingest", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+    });
+    if (r.ok === false) {
+      toast(r.hint || ("扫描失败：" + r.message), "err");
+      if (r.kind === "quota" || r.kind === "auth") openApiKeyModal();
+      return;
+    }
+    toast(`扫描完成，共新增 ${r.added_parents} 个父块`, "ok");
+    loadDataset(); loadDocs();
+  } catch (e) { toast("扫描失败：" + e.message, "err"); }
+  finally { b.disabled = false; b.classList.remove("loading"); }
+};
+$("#btnRefreshDataset").onclick = loadDataset;
+
+async function loadDocs() {
+  const el = $("#docList");
+  try {
+    const r = await api("/api/documents");
+    if (!r.documents.length) { el.innerHTML = '<span class="muted">知识库为空，请先上传或入库文档</span>'; return; }
+    el.innerHTML = `<table><thead><tr><th>来源</th><th>父块数</th><th>表格块</th><th>更新时间</th><th>操作</th></tr></thead><tbody>` +
+      r.documents.map((d) => `<tr>
+        <td>${esc(d.source)}</td><td>${d.parents}</td><td>${d.tables}</td>
+        <td class="muted">${esc(d.updated_at).slice(0, 19)}</td>
+        <td><button class="btn danger mini" data-del="${esc(d.source)}">删除</button></td>
+      </tr>`).join("") + "</tbody></table>";
+  } catch (e) { el.innerHTML = `<span class="muted">加载失败：${esc(e.message)}</span>`; }
+}
+
+async function delDoc(source) {
+  if (!confirm(`确定删除「${source}」的全部索引？此操作不可撤销。`)) return;
+  try {
+    const r = await api("/api/documents/" + encodeURIComponent(source), { method: "DELETE" });
+    toast(`已删除 ${source}（${r.deleted_parents} 个父块）`, "ok");
+    loadDocs(); loadDataset();
+  } catch (e) { toast("删除失败：" + e.message, "err"); }
+}
+
+$("#btnRefreshDocs").onclick = loadDocs;
+$("#btnReset").onclick = async () => {
+  if (!confirm("确定清空全部索引（Postgres 父文档 + Milvus 子块 + 本地记录）？")) return;
+  const b = $("#btnReset"); b.disabled = true; b.classList.add("loading");
+  try {
+    const r = await api("/api/reset", { method: "POST" });
+    toast(`已清空：Postgres 表 x${r.postgres_tables}，Milvus 集合 x${r.milvus_collections}`, "ok");
+    loadDocs(); loadDataset();
+  } catch (e) { toast("清空失败：" + e.message, "err"); }
+  finally { b.disabled = false; b.classList.remove("loading"); }
+};
+
+/* ---- 检索 ---- */
+$("#btnSearch").onclick = async () => {
+  const q = $("#searchQuery").value.trim();
+  if (!q) return;
+  const el = $("#searchResults");
+  el.innerHTML = '<span class="muted">检索中…</span>';
+  try {
+    const r = await api("/api/search", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: q, k: parseInt($("#searchK").value) || 5 }),
+    });
+    if (!r.results.length) { el.innerHTML = '<span class="muted">未检索到相关内容</span>'; return; }
+    el.innerHTML = r.results.map((d) => `
+      <div class="card" style="margin:0 0 12px">
+        <div style="margin-bottom:8px">
+          <span class="tag">#${d.rank}</span>
+          <span class="tag">来源: ${esc(d.source)}</span>
+          ${d.chunk_type ? `<span class="tag ${d.chunk_type === "table" ? "t" : ""}">${esc(d.chunk_type)}</span>` : ""}
+          ${d.section ? `<span class="tag">章节: ${esc(d.section)}</span>` : ""}
+          ${d.caption ? `<span class="tag t">题注: ${esc(d.caption)}</span>` : ""}
+        </div>
+        <pre>${esc(d.content)}</pre>
+      </div>`).join("");
+  } catch (e) { el.innerHTML = `<span class="muted">检索失败：${esc(e.message)}</span>`; }
+};
+$("#searchQuery").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#btnSearch").click(); });
+
+/* ---- 模型设置（运行中切换，无需重启） ---- */
+let lastModels = {};
+
+function fillOptions(sel, list) {
+  $(sel).innerHTML = (list || []).map((m) => `<option value="${esc(m)}"></option>`).join("");
+}
+
+async function loadModels() {
+  try {
+    const r = await api("/api/settings/models");
+    fillOptions("#llmOptions", r.candidates.llm);
+    fillOptions("#embeddingOptions", r.candidates.embedding);
+    fillOptions("#rerankerOptions", r.candidates.reranker);
+    lastModels = r.models;
+    $("#modelLlm").value = r.models.llm;
+    $("#modelEmbedding").value = r.models.embedding;
+    $("#modelReranker").value = r.models.reranker;
+    renderModelState(r);
+  } catch (e) { /* 后端未就绪时忽略 */ }
+}
+
+function renderModelState(r) {
+  const v = r.vectors || {};
+  $("#modelState").textContent =
+    `向量集合 ${v.exists ? "已建" : "未建"}｜子块 ${v.children || 0}｜维度 ${v.dim ?? "-"}`;
+  $("#btnRebuildVectors").hidden = !r.vectors_dirty;
+  if (r.vectors_dirty) {
+    $("#modelResult").innerHTML = `<div class="hint">向量模型已切换但向量索引尚未重建
+      （当前检索退化为仅 BM25）。请点「重建向量索引」用新模型重新向量化全部子块。</div>`;
+  }
+}
+
+async function applyModels(onlyRebuild) {
+  const btn = onlyRebuild ? $("#btnRebuildVectors") : $("#btnSaveModels");
+  const out = $("#modelResult");
+  const body = onlyRebuild ? {} : {
+    llm: $("#modelLlm").value.trim(),
+    embedding: $("#modelEmbedding").value.trim(),
+    reranker: $("#modelReranker").value.trim(),
+    verify: true,
+  };
+  if (!onlyRebuild && !body.llm && !body.embedding && !body.reranker) {
+    toast("请填写要切换的模型", "err");
+    return;
+  }
+  const needRebuildPrompt = onlyRebuild || (body.embedding && body.embedding !== lastModels.embedding);
+  if (needRebuildPrompt && !confirm(
+    "切换向量模型 / 重建向量索引会删除 Milvus 旧向量并按 Postgres 父文档重新向量化（不重新解析文档），期间请勿关闭页面。是否继续？"
+  )) return;
+
+  btn.disabled = true; btn.classList.add("loading");
+  out.innerHTML = '<span class="muted">正在应用模型…（重建向量索引时需重新向量化全部文档，请耐心等待）</span>';
+  try {
+    const url = onlyRebuild ? "/api/settings/models/rebuild-vectors" : "/api/settings/models";
+    const r = await api(url, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) {
+      out.innerHTML = `<div class="muted">${esc(r.detail || "已应用")}</div>`;
+      toast(r.embedding_rebuilt ? "模型已切换，向量索引已重建（无需重启）" : "模型已切换（无需重启）", "ok");
+    } else {
+      const hint = r.hint || r.message || "切换失败";
+      const fix = (r.kind === "quota" || r.kind === "auth")
+        ? '<button class="btn mini" data-apikey="1">更换 API Key</button>' : "";
+      out.innerHTML = `<div class="hint">${esc(hint)}${fix}</div>`;
+      toast(hint, "err");
+    }
+    loadModels(); loadHealth(); loadDocs();
+  } catch (e) {
+    out.innerHTML = `<div class="hint">${esc("切换失败：" + e.message)}</div>`;
+    toast("切换失败：" + e.message, "err");
+  } finally {
+    btn.disabled = false; btn.classList.remove("loading");
+  }
+}
+
+$("#btnSaveModels").onclick = () => applyModels(false);
+$("#btnRebuildVectors").onclick = () => applyModels(true);
+$("#btnRefreshModels").onclick = loadModels;
+$("#btnModels").onclick = () => document.querySelector('nav button[data-tab="settings"]').click();
+
+/* ---- 记忆 ---- */
+async function loadMemory() {
+  try {
+    const r = await api("/api/memory");
+    $("#memSummary").textContent = r.summary || "（无）";
+    const el = $("#memFacts");
+    if (!r.facts.length) { el.innerHTML = '<span class="muted">暂无用户画像</span>'; return; }
+    el.innerHTML = `<table><thead><tr><th>键</th><th>内容</th><th>类别</th><th></th></tr></thead><tbody>` +
+      r.facts.map((f) => `<tr><td>${esc(f.key)}</td><td>${esc(f.value)}</td><td class="muted">${esc(f.category)}</td>
+        <td><button class="btn danger mini" data-forget="${esc(f.key)}">删除</button></td></tr>`).join("") + "</tbody></table>";
+    $("#chatThread").textContent = "会话 " + r.thread_id;
+  } catch (e) { /* 忽略 */ }
+}
+
+async function forgetFact(key) {
+  try {
+    await api("/api/memory/" + encodeURIComponent(key), { method: "DELETE" });
+    toast("已删除该画像条目", "ok");
+    loadMemory();
+  } catch (e) { toast("删除失败：" + e.message, "err"); }
+}
+
+$("#btnAddFact").onclick = async () => {
+  const t = $("#factInput").value.trim();
+  if (!t) return;
+  try {
+    const r = await api("/api/memory/remember", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: t.startsWith("记住") ? t : "记住 " + t }),
+    });
+    if (r.ok) { toast("已写入用户画像", "ok"); $("#factInput").value = ""; loadMemory(); }
+    else toast("内容为空，未写入", "err");
+  } catch (e) { toast("写入失败：" + e.message, "err"); }
+};
+
+/* ---- 表格操作事件委托（避免把文件名拼进 inline onclick）---- */
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-ingest],[data-del],[data-forget],[data-apikey]");
+  if (!b) return;
+  if (b.dataset.apikey) openApiKeyModal();
+  else if (b.dataset.ingest) ingestOne(b.dataset.ingest, b.dataset.force === "1");
+  else if (b.dataset.del) delDoc(b.dataset.del);
+  else if (b.dataset.forget) forgetFact(b.dataset.forget);
+});
+
+/* ---- 更换 API Key（额度用尽 / Key 失效时无需重启） ---- */
+function openApiKeyModal() {
+  $("#apiKeyResult").textContent = "";
+  $("#apiKeyInput").value = "";
+  $("#apiKeyModal").hidden = false;
+  $("#apiKeyInput").focus();
+}
+$("#btnApiKey").onclick = openApiKeyModal;
+$("#btnApiKeyCancel").onclick = () => { $("#apiKeyModal").hidden = true; };
+$("#btnApiKeySave").onclick = async () => {
+  const key = $("#apiKeyInput").value.trim();
+  const out = $("#apiKeyResult");
+  if (!key) { out.textContent = "请输入 API Key"; return; }
+  const b = $("#btnApiKeySave");
+  b.disabled = true; b.classList.add("loading");
+  out.textContent = "正在重建模型与 Agent，并校验新 Key…";
+  try {
+    const r = await api("/api/settings/api-key", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: key, verify: true }),
+    });
+    if (r.verified === true) {
+      out.textContent = "✓ " + r.detail + "（Key 末四位 " + r.key_tail + "）";
+      toast("API Key 已更新，Agent 已重建（无需重启）", "ok");
+      $("#apiKeyModal").hidden = true;
+      loadHealth();
+    } else {
+      out.textContent = "⚠ " + (r.detail || "新 Key 校验未通过");
+    }
+  } catch (e) {
+    out.textContent = "失败：" + e.message;
+  } finally {
+    b.disabled = false; b.classList.remove("loading");
+  }
+};
+$("#apiKeyInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("#btnApiKeySave").click();
+});
+
+/* ---- 启动进度：Agent 自启动轮询 ---- */
+let startupTimer = setInterval(pollStartup, 1000);
+async function pollStartup() {
+  let s;
+  try { s = await api("/api/startup"); } catch { return; }
+  const el = $("#startupPill");
+  const cls = s.phase === "ready" ? "ok" : (s.phase === "error" ? "bad" : "");
+  el.className = "pill " + cls;
+  el.textContent = "Agent: " + s.detail;
+  el.title = s.detail;
+  if (s.phase === "ready" || s.phase === "error") {
+    clearInterval(startupTimer);
+    loadHealth();
+    if (s.phase === "ready") { toast("Agent 已就绪", "ok"); loadDocs(); loadDataset(); }
+    else toast(s.detail, "err");
+  }
+}
+
+/* ---- init ---- */
+loadHealth();
+loadModels();
+pollStartup();
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+# ---- Python 运行时产物 ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---- 环境与密钥 ----
+.env
+.env.*
+*.env
+
+# ---- 索引 / 解析产物 ----
+processed.json
+review/
+*.log
+
+# ---- Docker 数据卷（Milvus / etcd / minio 持久化数据）----
+volumes/
+
+# ---- 编辑器 / IDE ----
+.idea/
+.vscode/
+.trae/
+.DS_Store
+Thumbs.db

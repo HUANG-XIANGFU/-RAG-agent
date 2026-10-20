@@ -1,0 +1,45 @@
+# 科研文档智能问答系统依赖（Python 3.11）
+# 模型（LLM / Embedding / Reranker）全部走阿里云百炼，只需 DASHSCOPE_API_KEY。
+
+# ---- LangGraph + LangChain ----
+langgraph>=1.0.0
+langchain-core>=1.0.0
+langchain-community>=0.4.0
+langchain-text-splitters>=1.1.0
+langchain-milvus>=0.4.0
+langchain-openai>=1.6.0
+
+# ---- 阿里云百炼 API ----
+dashscope>=1.27.0
+
+# ---- 向量库 + 父文档/记忆存储 ----
+pymilvus>=3.0.0
+psycopg[binary]>=3.3.0
+
+# ---- Web 平台 ----
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+pydantic>=2.7.0
+
+# ---- 示例工具（空气质量 HTTP 请求）----
+requests>=2.31.0
+
+# ---- 多格式文档解析 ----
+mineru[all]>=2.5.0
+python-docx>=1.0.0
+python-pptx>=1.0.0
+pypdf>=4.0.0
+pypdfium2>=4.0.0
+ftfy>=6.1.1
+
+# ---- MinerU 推理依赖（本地已装可忽略；GPU 版 torch 请按官方指引安装）----
+torch>=2.5.0
+torchvision>=0.20.0
+transformers>=4.49.0
+tokenizers>=0.21.0
+huggingface-hub>=0.30.0
+
+# ---- BM25 关键词检索 + 中文分词 ----
+rank-bm25>=0.2.2
+jieba>=0.42.1
